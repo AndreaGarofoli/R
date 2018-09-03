@@ -1,0 +1,174 @@
+---
+title: "Study of Breast Cancer Features"
+shorttitle: "R Project"
+author: 
+  - name: Garofoli Andrea
+    affiliation: 1
+    corresponding: yes    
+    address: Schönbeinstrasse 40, 4031 Basel, Switzerland
+    email:  andrea.garofoli@usb.ch
+affiliation:
+  - id: 1
+    institution: Institute of Pathology
+
+abstract: |
+  The data used in this project was obtained from the METABRIC cohort and contains information about X breast cancers. The aim of this study is to find possible correlations between said features to better understand cancer's behaviour. 
+  
+note: |  
+  More information about the METABRIC cohort can be found in
+  http://www.cbioportal.org/study?id=brca_metabric#
+  
+keywords: "breast, cancer, metabric"
+
+class: word
+lang: english
+figsintext: yes  
+lineno: no    
+bibliography:
+  - Final_GarofoliAndrea.bib 
+
+output: papaja::apa6_pdf
+---
+```{r setup, include = FALSE}
+
+knitr::opts_chunk$set(echo = FALSE, 
+                      eval = TRUE,
+                      message = FALSE, 
+                      fig.width = 4, 
+                      fig.height = 4,
+                      fig.align = 'center',
+                      out.width = "100%")
+
+library("papaja")
+library("knitr")
+library("yarrr")
+library("tidyverse")
+library("ggplot2")
+
+
+
+Mdata <- read.table("/metabric.txt",
+                   sep = "\t", header = TRUE, row.names = 1)
+```
+
+The Breast Cancer is composed by a number of different subtypes, defined by many complex inter- and intra- heterogeneous features. Features such as tumor's size, grade and lympho node status have an important role when we need to define a proper treatment for the single patient, but particoularly important is the presence or the lack of Estrogen Receptor (ER) and Human Epidermal growth factor Receptor 2 (HER2). Even within the same subgroups the outcomes can be extremely varied, this is why there's still the need for some improvement to our knoweledge of this disease.
+
+The Molecular Taxonomy of Breast Cancer International Consortium (METABRIC, @pereira2016somatic) tried to address this issue byperforming an integrated analysis of somatic Copy Number Aberrations (CNAs) and gene expression profiles in 2,000 primary tumours. In this class' project we can find a subset of the original clinical data which includes [T6] 500 samples and 14 different features.
+
+&nbsp;
+
+With this project I want to exploit the clinical data provided by METABRIC to find potential correlations between the features and possible interactions. (Disclaimer: please don't take these analyses too seriously, some of them are trivial and the rest are completely weird. Just saying.)
+
+&nbsp;
+
+# Analyses
+
+The subset of the original METABRIC data used in this project includes [T6] 14 features (sample name, erStatus, her2Status, ageGreater55, grade, sizeGreater50, lnPositive, histology, patientStatus, age_at_diagnosis, size, stage, NPI and Pam50Subtype) associated to 500 different cancers. 
+
+```{r outl}
+is.outlier <- Mdata$size > (mean(Mdata$size) + 3 * sd(Mdata$size)) | 
+  Mdata$size < (mean(Mdata$size) - 3 * sd(Mdata$size))
+```
+
+In order to gain a better insight into the data we've performed some initial analyses; [T8] we've obtained a median Nottingham Prognostic Index of `r round(median(Mdata$NPI), 2)`, an average patients' age of `r round(mean(Mdata$age_at_diagnosis), 2)` and a Standard Deviation of `r round(sd(Mdata$size), 2)` for the size of the tumors, with [T11] `r length(is.outlier[is.outlier==TRUE])` outliers .
+
+
+```{r figure1, fig.width = 6, fig.height = 4, fig.cap= "[T12] Scatterplot of age and size", eval = TRUE}
+
+ggplot(Mdata, aes(x=age_at_diagnosis, y=size, fill=grade)) + geom_point(shape=21, size=1) + 
+  labs(color = "Grade",title = "Patient age", y = "Tumor size", x="") + theme_light() +
+  scale_fill_continuous(low = "white", high = "grey30") +  theme( panel.border = element_blank(), panel.background = element_blank(),
+                                                                  plot.title = element_text(size = 14, face = "bold"),
+                                                                  text=element_text(),
+                                                                  axis.title = element_text(face="bold"),
+                                                                  axis.text.y=element_text(colour="black", size = 9),
+                                                                  axis.line = element_line(size=0.5, colour = "black"),
+                                                                  legend.title=element_blank())  + 
+  geom_smooth(method='lm')
+```
+
+
+
+```{r figure2, fig.width = 6, fig.height = 4, fig.cap= "[T14] Distribution of ages", eval = TRUE}
+
+ggplot(Mdata, aes( y=size , x=sizeGreater50
+)) + geom_violin() + 
+  geom_point(aes(y=size , x=sizeGreater50), color = "black", size = 1, data = Mdata) + 
+  theme_bw() + 
+  theme(panel.grid.major = element_line(colour = "#d3d3d3", linetype = 1), 
+        panel.grid.minor = element_line(colour="#d3d3d3", size=0.1, linetype = 1),
+        panel.border = element_blank(), panel.background = element_blank(),
+        plot.title = element_text(size = 14, face = "bold"),
+        text=element_text(),
+        axis.title = element_text(face="bold"),
+        axis.text.y=element_text(colour="black", size = 9),
+        axis.line = element_line(size=0.5, colour = "black"),
+        # axis.text.x=element_blank(),
+        legend.title=element_blank()) +
+  scale_colour_manual(values=c("grey50", "grey30"))
+```
+
+&nbsp;
+
+The average tumor size [T15] under the 50 mm is `r aggregate(formula = size ~ sizeGreater50, data = Mdata, FUN = mean)$size[1]` mm, the average one above 50 mm is `r aggregate(formula = size ~ sizeGreater50, data = Mdata, FUN = mean)$size[2]` mm.
+
+```{r figure3, fig.width = 6, fig.height = 4, fig.cap= "[T13] Distribution of tumor sizes", eval = TRUE}
+
+hist(as.numeric(Mdata$size), col="grey 70", 
+     xlab= "Tumor Size", font.lab=1 , main="", breaks=seq(0,200,by=2))
+```
+
+```{r analyses}
+sizeage <- t.test(formula = ageGreater55 ~ sizeGreater50, data = Mdata)
+
+lr<- glm(formula = ageGreater55 ~ sizeGreater50,
+    data = Mdata,
+    family = binomial)
+
+ln <- t.test(formula = size ~ lnPositive,  data = Mdata, subset= size %in% c(20, 50))
+
+sizegrade <- cor.test(formula = ~ size + grade,
+         data = Mdata)
+
+aost<-aov(formula = stage ~ size + histology,
+        data = Mdata)
+
+aad<- cor.test(formula = ~ stage + age_at_diagnosis,
+         data = Mdata, subset= size %in% c(50, 80))
+
+
+```
+
+
+Does the tumor size correlate with the presence of cancer cells within the lymph nodes? Our results [T17] show that it does (`r papaja::apa_print(ln)$full_result`).
+
+
+The t-test [T16] between the presence of a breast cancer in women older than 55 and a tumor size bigger than 50 mm is homogeneous (`r papaja::apa_print(sizeage)$full_result`), in other words the biggest tumors can only be found in persons older than 55. This was also confirmed by a Logistic Regression [T24] (`r papaja::apa_print(lr)$full_result$sizeGreater50`). Furthermore the patient's age doesn't seem to correlate with the cancer's development stage [T21] (`r papaja::apa_print(aad)$full_result`).
+
+&nbsp;
+
+Cancers can be classified using a grading system that specifies how abnormal the tumour cells are when compared to normal cells. Is there a relationship between this grade and the size of the tumor? Our results show that there is a tight correlation [T18] between the two of them (`r papaja::apa_print(sizegrade)$full_result`). Furthermore another test confirms the correlation [T22] between the development stage of the tumor and size (`r papaja::apa_print(aost)$statistic$size`), but not with the its histology (`r papaja::apa_print(aost)$statistic$histology`). A Chi-Square test also shows a predominance of Ductal NST (no special type) histology within our dataset [T20]
+
+```{r}
+chisq.test(x = table(Mdata$histology))
+
+```
+
+&nbsp;
+
+
+# Discussion
+
+Thanks to the massive sequencing performed by the METABRIC team (@pereira2016somatic) we could carry on some statistical analyses able to give us a better insight on the Breast Cancer. The first result was the noticeable role of the age in the cancer's aggressivity. Older patients showed significantly bigger and more aggressive (showing, for example, the presence of cancer cells within lymph nodes), but not necessarily more developed, cancers. 
+The Ductal histology was the more common kind of histology found within our dataset [T9].
+
+&nbsp;
+
+We hope that these results will provide a better understanding of Breast Cancer. 
+
+# References
+
+
+\setlength{\parindent}{-0.5in}
+\setlength{\leftskip}{0.5in}
+\setlength{\parskip}{8pt}
